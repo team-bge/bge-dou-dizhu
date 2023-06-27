@@ -1,0 +1,20 @@
+{
+  "name": "template-minimal",
+  "description": "A BGE game template with only the essentials",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "bge build",
+    "start": "bge serve"
+  },
+  "devDependencies": {
+    "bge-dev": "^1.0.2"
+  },
+  "dependencies": {
+    "bge-core": "^1.0.2"
+  },
+  "boardgameengine": {
+    "type": "game",
+    "title": "Minimal Template"
+  }
+}

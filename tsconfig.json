@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "lib": [ "es2021", "dom" ],
+    "module": "ESNext",
+    "rootDir": "src",
+    "allowJs": false,
+    "sourceMap": true,
+    "declaration": false,
+    "outDir": "dist",
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "nodenext"
+  }
+}
