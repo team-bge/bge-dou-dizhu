@@ -1,10 +1,10 @@
 import * as bge from "bge-core";
 
-import { Player } from "./player.js";
+import { Player, Team } from "./player.js";
 import { TableCenter } from "./objects/table.js";
 import { PlayingCard, CardColor, CardValue } from "bge-playingcard";
 import auction from "./auction.js";
-import { getPossibleHands } from "./categories.js";
+import { BOMB, IHand, ROCKET, getPossibleHands } from "./categories.js";
 
 function getCardScore(card: PlayingCard): number {
     switch (card.value) {
@@ -104,9 +104,7 @@ export class Game extends bge.Game<Player> {
     protected override async onRun(): Promise<bge.IGameResult> {
         await this.startGame();
 
-        while (true) {
-            const fullRound = await this.playRound();
-        }
+        while (await this.playRound()) { }
 
         return await this.endGame();
     }
@@ -141,6 +139,9 @@ export class Game extends bge.Game<Player> {
         for (let player of this.turnOrder) {
             if (player !== landlord) {
                 player.bid = undefined;
+                player.team = Team.PEASANTS;
+            } else {
+                player.team = Team.LANDLORD;
             }
         }
 
@@ -154,20 +155,223 @@ export class Game extends bge.Game<Player> {
 
         landlord.hand.addRange(this.drawPile.removeAll());
 
-        let startingPlayer = landlord;
+        let player = landlord;
+        const peasants = this.turnOrder.filter(x => x != landlord);
 
-        while (startingPlayer.hand.count > 0) {
-            const hands = getPossibleHands(startingPlayer.hand);
+        while (player.hand.count > 0) {
+            let bestHand: IHand = null;
+            let passCount = 0;
 
-            for (let hand of hands) {
-                console.log(`${hand.category.name}: ${hand.chain.map(x => `([${x.primal.map(y => y.name).join(", ")}] + [${x.kicker.map(y => y.name).join(", ")}])`).join(", ")}`);
+            while (passCount < 2) {
+                const playedHand = await this.playHand(player, bestHand);
+
+                if (playedHand == null) {
+                    player = this.getNextPlayer(player);
+                    ++passCount;
+                    continue;
+                }
+
+                if (playedHand.category === ROCKET || playedHand.category === BOMB) {
+                    bge.message.add("The wager {0}!", "doubles");
+                    landlord.bid *= 2;
+
+                    await bge.delay.short();
+                }
+
+                bestHand = playedHand;
+                passCount = 0;
+
+                if (player.hand.count === 0) {
+                    break;
+                }
+
+                player = this.getNextPlayer(player);
             }
 
-            await bge.delay.seconds(10);
-            break;
+            if (player.hand.count === 0) {
+                break;
+            }
+
+            bge.message.set("{0} wins the hand!", player);
+
+            this.discardPile.addRange(this.lastPlayedHand.removeAll());
+
+            await bge.delay.short();
         }
 
-        return true;
+        await bge.delay.beat();
+
+        if (player === landlord) {
+            bge.message.set("The {0} wins!", "Landlord");
+            landlord.score += landlord.bid * 2;
+            peasants.forEach(x => x.score -= landlord.bid);
+        } else {
+            bge.message.set("The {0} win!", "Peasants");
+            landlord.score -= landlord.bid * 2;
+            peasants.forEach(x => x.score += landlord.bid);
+        }
+
+        await bge.delay.beat();
+
+        const losingPlayers = this.players.filter(x => x.score < 0);
+        const votes = await bge.all(() => losingPlayers.map(x => this.continueVote(x)));
+
+        if (votes.every(x => x)) {
+            return true;
+        }
+
+        bge.message.set("Someone voted to resign!");
+
+        await bge.delay.short();
+        await this.cleanUp();
+
+        return false;
+    }
+
+    continueVote(player: Player): Promise<boolean> {
+        return bge.anyExclusive(() => [
+            player.prompt.click("Resign", { return: false }),
+            player.prompt.click("Continue", { return: true })
+        ]);
+    }
+
+    static isBetterHand(hand: IHand, toBeat: IHand): boolean {
+        if (hand.category === ROCKET) {
+            return true;
+        }
+
+        if (hand.category === BOMB && toBeat.category !== BOMB) {
+            return toBeat.category !== ROCKET;
+        }
+
+        return hand.category === toBeat.category
+            && hand.chain.length === toBeat.chain.length
+            && compareCards(hand.chain[0].primal[0], toBeat.chain[0].primal[0]) > 0;
+    }
+
+    static getAllCards(hand: IHand): readonly PlayingCard[] {
+        const cards = [];
+
+        for (let element of hand.chain) {
+            cards.push(...element.primal);
+            cards.push(...element.kicker);
+        }
+
+        return cards;
+    }
+
+    static containsCard(hand: IHand, card: PlayingCard): boolean {
+        for (let element of hand.chain) {
+            if (element.primal.includes(card)) return true;
+            if (element.kicker.includes(card)) return true;
+        }
+
+        return false;
+    }
+
+    static isHandComplete(hand: IHand, selected: readonly PlayingCard[]): boolean {
+        const required = this.getAllCards(hand);
+        return required.length === selected.length && selected.every(x => required.includes(x));
+    }
+
+    async playHand(player: Player, toBeat?: IHand): Promise<IHand> {
+        let hands = getPossibleHands(player.hand);
+
+        if (toBeat != null) {
+            hands = hands.filter(x => Game.isBetterHand(x, toBeat));
+        }
+
+        let canAutoSelect = false;
+        let prevPartialHands: readonly IHand[] = [];
+
+        while (true) {
+            const selected = player.hand.selected;
+            const partialHands = selected.length === 0 ? hands : hands
+                .filter(x => selected.every(y => Game.containsCard(x, y)));
+
+            const selectable = player.hand.unselected
+                .filter(x => partialHands.some(y => Game.containsCard(y, x)));
+
+            const completeHand = selected.length > 0
+                ? partialHands.find(x => Game.isHandComplete(x, selected))
+                : null;
+
+            const autoSelectable = selectable
+                .filter(x => partialHands.every(y => Game.containsCard(y, x)));
+            const autoDeselectable = selected
+                .filter(x => hands.filter(y => Game.containsCard(y, x)).length
+                    === prevPartialHands.filter(y => Game.containsCard(y, x)).length);
+
+            let handName = completeHand?.category.name;
+
+            if (completeHand?.chain.length > 1) {
+                handName += " Chain";
+            }
+
+            let result: PlayingCard | boolean | null;
+
+            if (toBeat?.category === ROCKET) {
+                result = false;
+            } else if (canAutoSelect && autoSelectable.length > 0) {
+                result = autoSelectable[0];
+            } else if (!canAutoSelect && autoDeselectable.length > 0) {
+                result = autoDeselectable[0];
+            } else {
+                result = await bge.anyExclusive(() => [
+                    player.prompt.clickAny(selectable, {
+                        message: "Select a card"
+                    }),
+                    player.prompt.clickAny(selected, {
+                        message: "Deselect a card"
+                    }),
+                    player.prompt.click("Deselect All", {
+                        if: selected.length > 1,
+                        return: null
+                    }),
+                    player.prompt.click(`Play ${handName}`, {
+                        if: completeHand != null,
+                        return: true
+                    }),
+                    player.prompt.click("Pass", {
+                        if: toBeat != null,
+                        return: false
+                    })
+                ]);
+            }
+
+            prevPartialHands = partialHands;
+
+            if (result instanceof PlayingCard) {
+                canAutoSelect = !player.hand.getSelected(result);
+                player.hand.toggleSelected(result);
+                continue;
+            }
+
+            if (result == null) {
+                canAutoSelect = false;
+                player.hand.setSelected(false);
+                continue;
+            }
+
+            if (result) {
+                this.discardPile.addRange(this.lastPlayedHand.removeAll());
+
+                bge.message.set("{0} plays {1}", player, selected);
+
+                player.hand.removeAll(selected);
+                this.lastPlayedHand.addRange(selected);
+
+                await bge.delay.beat();
+
+                return completeHand;
+            }
+
+            player.hand.setSelected(false);
+
+            bge.message.set("{0} passes", player);
+
+            return null;
+        }
     }
 
     async cleanUp(): Promise<void> {
@@ -175,6 +379,7 @@ export class Game extends bge.Game<Player> {
 
         for (let player of this.turnOrder) {
             player.bid = undefined;
+            player.team = Team.NONE;
             this.discardPile.addRange(player.hand.removeAll());
         }
 
@@ -214,14 +419,14 @@ export class Game extends bge.Game<Player> {
 
     async endGame(): Promise<bge.IGameResult> {
 
-        bge.message.set("Game over!");
+        bge.message.add("Game over!");
 
         await bge.delay.long();
 
         // Return final scores to end the game
 
         return {
-            scores: this.players.map(x => 0)
+            scores: this.players.map(x => x.score)
         };
     }
 }

@@ -16,6 +16,25 @@ export interface IHandCategory {
     minChainCount?: number;
 }
 
+export const PAIR: IHandCategory = {
+    name: "Pair",
+    primalCount: 2,
+    kicker: KickerType.NONE,
+    minChainCount: 3
+};
+
+export const BOMB: IHandCategory = {
+    name: "Bomb",
+    primalCount: 4,
+    kicker: KickerType.NONE
+};
+
+export const ROCKET: IHandCategory = {
+    name: "Rocket",
+    primalCount: 2,
+    kicker: KickerType.NONE
+};
+
 export const HAND_CATEGORIES: IHandCategory[] = [
     {
         name: "Solo",
@@ -23,12 +42,7 @@ export const HAND_CATEGORIES: IHandCategory[] = [
         kicker: KickerType.NONE,
         minChainCount: 5
     },
-    {
-        name: "Pair",
-        primalCount: 2,
-        kicker: KickerType.NONE,
-        minChainCount: 3
-    },
+    PAIR,
     {
         name: "Trio",
         primalCount: 3,
@@ -47,11 +61,7 @@ export const HAND_CATEGORIES: IHandCategory[] = [
         kicker: KickerType.PAIR,
         minChainCount: 2
     },
-    {
-        name: "Four of a Kind",
-        primalCount: 4,
-        kicker: KickerType.NONE
-    },
+    BOMB,
     {
         name: "Four of a Kind + Two Kickers",
         primalCount: 4,
@@ -126,6 +136,8 @@ export function getPossibleHands(cards: Iterable<PlayingCard>, category?: IHandC
     const hands: IHand[] = [];
 
     for (let category of categories) {
+        const categoryHands: IHand[] = [];
+
         for (let primalValue of map.keys()) {
             const primalCards = map.get(primalValue);
             const primalChoices = listChoices(primalCards, category.primalCount);
@@ -171,20 +183,92 @@ export function getPossibleHands(cards: Iterable<PlayingCard>, category?: IHandC
                         break;
                 }
 
-                for (let kicker of kickers) {
+                if (category === PAIR && primal[0].value === CardValue.Joker) {
                     hands.push({
-                        category: category,
+                        category: ROCKET,
                         chain: [{
                             primal: primal,
-                            kicker: kicker
+                            kicker: []
                         }]
                     });
+                } else {
+                    for (let kicker of kickers) {
+                        const hand = {
+                            category: category,
+                            chain: [{
+                                primal: primal,
+                                kicker: kicker
+                            }]
+                        };
+
+                        hands.push(hand);
+                        categoryHands.push(hand);
+                    }
                 }
             }
         }
-    }
 
-    // TODO: Chains
+        if (category.minChainCount == null) {
+            continue;
+        }
+
+        // Chains
+        for (let i = 0; i < categoryHands.length; ++i) {
+            const prevHand = categoryHands[i];
+            const prevPrimalValue = prevHand
+                .chain[prevHand.chain.length - 1]
+                .primal[0].value;
+
+            if (prevPrimalValue === CardValue.Ace) {
+                continue;
+            }
+
+            for (let j = i + 1; j < categoryHands.length; ++j) {
+                const nextHand = categoryHands[j];
+                const nextPrimalValue = nextHand
+                    .chain[0].primal[0].value;
+
+                if (nextHand.chain.length !== 1) {
+                    continue;
+                }
+
+                if (prevPrimalValue === CardValue.King && nextPrimalValue !== CardValue.Ace) {
+                    continue;
+                }
+
+                if (prevPrimalValue !== CardValue.King && nextPrimalValue !== prevPrimalValue + 1) {
+                    continue;
+                }
+
+                if (category.kicker !== KickerType.NONE) {
+                    if (prevHand.chain.some(x => x.kicker[0].value === nextPrimalValue)) {
+                        continue;
+                    }
+
+                    if (prevHand.chain.some(x => x.primal[0].value === nextHand.chain[0].kicker[0].value)) {
+                        continue;
+                    }
+
+                    if (prevHand.chain.some(x => x.kicker[0].value === nextHand.chain[0].kicker[0].value)) {
+                        continue;
+                    }
+                }
+
+                const newHand = {
+                    category: category,
+                    chain: [...prevHand.chain, ...nextHand.chain]
+                };
+
+                categoryHands.splice(j + 1, 0, newHand);
+
+                if (newHand.chain.length >= category.minChainCount) {
+                    hands.push(newHand);
+                }
+
+                j += 1;
+            }
+        }
+    }
 
     return hands;
 }

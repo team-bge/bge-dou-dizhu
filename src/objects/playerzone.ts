@@ -26,10 +26,15 @@ export class PlayerZone extends bge.Zone {
         super(PlayerZone.WIDTH, PlayerZone.HEIGHT);
 
         this.player = player;
-        
+
         this.label = player.name;
         this.outlineColor = player.color;
 
         this.children.addProperties(player);
+    }
+
+    override render(ctx: bge.RenderContext): bge.views.IView {
+        this.outlineColor = this.player.color;
+        return super.render(ctx);
     }
 }
