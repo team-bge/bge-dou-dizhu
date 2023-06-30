@@ -11,7 +11,8 @@
     "bge-dev": "^1.0.2"
   },
   "dependencies": {
-    "bge-core": "^1.0.2"
+    "bge-core": "^1.0.2",
+    "bge-playingcard": "^1.0.0"
   },
   "boardgameengine": {
     "type": "game",

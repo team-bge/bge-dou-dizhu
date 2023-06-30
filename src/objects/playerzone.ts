@@ -10,12 +10,12 @@ export class PlayerZone extends bge.Zone {
     /**
      * Width of each player zone in centimeters.
      */
-    static readonly WIDTH = 20;
+    static readonly WIDTH = 32;
     
     /**
      * Height of each player zone in centimeters.
      */
-    static readonly HEIGHT = 10;
+    static readonly HEIGHT = 18;
 
     /**
      * The player that owns this zone.
@@ -29,5 +29,7 @@ export class PlayerZone extends bge.Zone {
         
         this.label = player.name;
         this.outlineColor = player.color;
+
+        this.children.addProperties(player);
     }
 }
