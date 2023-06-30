@@ -1,6 +1,6 @@
 {
   "name": "bge-dou-dizhu",
-  "description": "Players bid to become the landlord, who must then shed their hand before either of the two peasant players. ",
+  "description": "Players bid to become the landlord, who must then shed their hand before either of the two peasant players.",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
