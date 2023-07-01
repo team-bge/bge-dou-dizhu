@@ -400,7 +400,7 @@ export class Game extends bge.Game<Player> {
 
         await bge.delay.short();
 
-        this.drawPile.shuffle();
+        this.drawPile.shuffle(3, this.drawPile.count);
         this.drawPile.deal(this.turnOrder.map(x => x.hand), 17);
 
         let firstBidder: Player;
