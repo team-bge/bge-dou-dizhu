@@ -8,10 +8,10 @@
     "start": "bge serve"
   },
   "devDependencies": {
-    "bge-dev": "^1.0.2"
+    "bge-dev": "^1.0.6"
   },
   "dependencies": {
-    "bge-core": "^1.0.2",
+    "bge-core": "^1.0.6",
     "bge-playingcard": "^1.0.0"
   },
   "boardgameengine": {
