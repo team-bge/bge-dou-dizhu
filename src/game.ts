@@ -333,7 +333,7 @@ export class Game extends bge.Game<Player> {
                         return: true
                     }),
                     player.prompt.click("Pass", {
-                        if: toBeat != null,
+                        if: toBeat != null && selected.length === 0,
                         return: false
                     })
                 ]);
