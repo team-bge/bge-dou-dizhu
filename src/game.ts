@@ -296,8 +296,12 @@ export class Game extends bge.Game<Player> {
                 ? partialHands.find(x => Game.isHandComplete(x, selected))
                 : null;
 
+            const allPartialHandsEqual = partialHands.length > 0
+                && partialHands.every(x => x.category == partialHands[0].category && x.chain.length === partialHands[0].chain.length)
+                && partialHands.every(x => compareCards(partialHands[0].chain[0].primal[0], x.chain[0].primal[0]) === 0);
+
             const autoSelectable = selectable
-                .filter(x => partialHands.every(y => Game.containsCard(y, x)));
+                .filter(x => partialHands.every(y => Game.containsCard(y, x)) || allPartialHandsEqual && partialHands.some(y => Game.containsCard(y, x)));
             const autoDeselectable = selected
                 .filter(x => hands.filter(y => Game.containsCard(y, x)).length
                     === prevPartialHands.filter(y => Game.containsCard(y, x)).length);
