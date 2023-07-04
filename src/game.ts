@@ -295,13 +295,32 @@ export class Game extends bge.Game<Player> {
             const completeHand = selected.length > 0
                 ? partialHands.find(x => Game.isHandComplete(x, selected))
                 : null;
+                
+            const mustSelectValues = new Set<CardValue>();
 
-            const allPartialHandsEqual = partialHands.length > 0
-                && partialHands.every(x => x.category == partialHands[0].category && x.chain.length === partialHands[0].chain.length)
-                && partialHands.every(x => compareCards(partialHands[0].chain[0].primal[0], x.chain[0].primal[0]) === 0);
+            if (partialHands.length > 0) {
+                for (let card of Game.getAllCards(partialHands[0])) {
+                    if (!selectable.includes(card)) {
+                        continue;
+                    }
+
+                    mustSelectValues.add(card.value);
+                }
+
+                for (let hand of partialHands.slice(1)) {               
+                    const values = [...mustSelectValues];
+                    const inHand = new Set(Game.getAllCards(hand).map(x => x.value));
+
+                    for (let value of values) {
+                        if (!inHand.has(value)) {
+                            mustSelectValues.delete(value);
+                        }
+                    }
+                }
+            }
 
             const autoSelectable = selectable
-                .filter(x => partialHands.every(y => Game.containsCard(y, x)) || allPartialHandsEqual && partialHands.some(y => Game.containsCard(y, x)));
+                .filter(x => partialHands.every(y => mustSelectValues.has(x.value)));
             const autoDeselectable = selected
                 .filter(x => hands.filter(y => Game.containsCard(y, x)).length
                     === prevPartialHands.filter(y => Game.containsCard(y, x)).length);
