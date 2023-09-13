@@ -274,11 +274,29 @@ export class Game extends bge.Game<Player> {
         return required.length === selected.length && selected.every(x => required.includes(x));
     }
 
+    noPossibleHands(player: Player, toBeat: IHand): boolean {
+        const discarded = [...this.discardPile, ...this.lastPlayedHand];
+
+        const rocketPossible = player.hand.count >= 2 && !discarded.some(x => x.value === CardValue.Joker);
+        const bombPossible = player.hand.count >= 4;
+        const followPossible = player.hand.count >= Game.getAllCards(toBeat).length;
+
+        return !rocketPossible && !bombPossible && !followPossible;
+    }
+
     async playHand(player: Player, toBeat?: IHand): Promise<IHand> {
         let hands = getPossibleHands(player.hand);
 
         if (toBeat != null) {
             hands = hands.filter(x => Game.isBetterHand(x, toBeat));
+        }
+
+        if (hands.length === 0 && toBeat != null && this.noPossibleHands(player, toBeat)) {
+            bge.message.set("{0} passes", player);
+            
+            player.hand.setSelected(false);
+
+            return null;
         }
 
         let canAutoSelect = false;
