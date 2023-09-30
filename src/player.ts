@@ -60,7 +60,7 @@ export class Player extends bge.Player {
         }
     }
 
-    @bge.display(function () { return {
+    @bge.display(function (this: Player) { return {
         revealedFor: [this],
         position: { y: -3 }
     }})
